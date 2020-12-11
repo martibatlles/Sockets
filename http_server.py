@@ -16,11 +16,14 @@ def existeix_fitxer(nom_fitxer = "index.html"):
 
 def contingut_fitxer(nom_fitxer = "index.html"):
     log(f"Obrint fitxer: {nom_fitxer}")
-    with open(nom_fitxer, "r") as fitxer:
-        text = ""
-        for linia in fitxer:
-            text += linia
-        return text
+    if nom_fitxer.endswith(".html"):
+        with open(nom_fitxer, "r") as fitxer:
+            contingut = ""
+            for linia in fitxer:
+                contingut += linia
+            return contingut
+    elif nom_fitxer.endswith(".gif"):
+        pass
 
 def log(message):
     print(message)
@@ -32,6 +35,7 @@ class GestorCiclePeticioResposta():
     def cicle(self):
         log("Cicle iniciat!")
         self.request = self.get_request()
+        #if self.request.peticio_rebuda:
         self.response = self.make_response()
         self.socket_connectat.enviar_resposta(self.response)
        
@@ -59,13 +63,15 @@ class GestorCiclePeticioResposta():
 class Request():
     def __init__(self, dades_peticio):
         self.peticio_rebuda = dades_peticio
-        log(self.peticio_rebuda)
-        self.metode = self.get_metode()
-        self.recurs = self.get_recurs()
-        self.nom_fitxer = self.get_nom_fitxer()
-        log(self.metode)
-        log(self.recurs)
-        log(self.nom_fitxer)
+        if dades_peticio:
+            log(self.peticio_rebuda)
+            self.metode = self.get_metode()
+            self.recurs = self.get_recurs()
+            self.nom_fitxer = self.get_nom_fitxer()
+            log(self.metode)
+            log(self.recurs)
+            log(self.nom_fitxer)
+        else: log("Petició buida - socket tancat!")
     
     def get_metode(self):
         return self.peticio_rebuda.split("\n")[0].split(" ")[0]
@@ -92,7 +98,9 @@ class SocketConnectat():
 
     def rebre_request(self):
         log("Rebent petició...")
-        peticio = Request(self.socket.recv(1024).decode())
+        dades = self.socket.recv(2048).decode()
+        if not dades: self.socket.close()
+        peticio = Request(dades)
         return peticio
 
     def enviar_resposta(self, dades):
@@ -106,7 +114,7 @@ class Servidor():
         self.host = host
         self.port = port
 
-    def executar(self, listeners = 5):
+    def executar(self, listeners = 10):
         with self.socket_servidor as s:
             s.bind((self.host, self.port))
             s.listen(listeners)
@@ -136,3 +144,5 @@ if __name__ == "__main__":
     except Exception as exc:
         print("Error:\n")
         print(exc)
+
+    
