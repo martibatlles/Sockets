@@ -1,6 +1,7 @@
 import socket
 import sys
 import os.path
+from collections import defaultdict
 
 HOST = "localhost"
 PORT = 5555
@@ -8,20 +9,39 @@ PORT = 5555
 RESPOSTA = {200: "HTTP/1.1 200 OK\r\n", 
             404: "HTTP/1.1 404 Not Found\r\n"}
 
-HEADERS = ("Content-Type: text/html\r\n"
-"Server: Marti_Lu\r\n"
-"\r\n")
+
+HEADER_CONTENT_TYPE = defaultdict(lambda: "text/html")
+HEADER_CONTENT_TYPE[".html"] = "text/html" 
+HEADER_CONTENT_TYPE[".jpg"] = "image/jpg"
+
+
+HEADER_ACCEPT_RANGES = defaultdict(lambda: "")
+HEADER_ACCEPT_RANGES[".jpg"] = "Accept-ranges: bytes\r\n"
+
+
+def get_headers(nom_fitxer = "index.html"):
+    fitxer = nom_fitxer
+    extension = os.path.splitext(fitxer)[1]
+    headers = (f"{HEADER_ACCEPT_RANGES[extension]}"
+    f"Content-Type: {HEADER_CONTENT_TYPE[extension]}\r\n"
+    "Server: Marti_Lu\r\n"
+    "\r\n")
+    return headers
+
 
 def existeix_fitxer(nom_fitxer = "index.html"):
     return os.path.isfile(nom_fitxer)
 
 def contingut_fitxer(nom_fitxer = "index.html"):
+    fitxer = nom_fitxer
+    extensio = os.path.splitext(fitxer)[1]
+    HEADER_MODE_OBRIR_FITXER = defaultdict(lambda: "rb")
+    HEADER_MODE_OBRIR_FITXER[".html"] = "r"
+    HEADER_MODE_OBRIR_FITXER[".jpg"] = "rb"
     log(f"Obrint fitxer: {nom_fitxer}")
-    with open(nom_fitxer, "r") as fitxer:
-        contingut = ""
-        for linia in fitxer:
-            contingut += linia
-        return contingut
+    mode_apertura = HEADER_MODE_OBRIR_FITXER[extensio]
+    with open(nom_fitxer, mode_apertura) as fitxer:
+        return fitxer.read()
 
 def log(message):
     print(message)
@@ -36,6 +56,12 @@ class GestorCiclePeticioResposta():
         if self.request:
             self.response = self.make_response()
             self.socket_request.enviar_resposta(self.response)
+            if self.socket_request.nom_fitxer.endswith(".html") and self.fitxer_existeix:
+                self.socket_request.enviar_resposta(contingut_fitxer(self.socket_request.nom_fitxer))
+            else:
+                if self.fitxer_existeix:
+                    self.socket_request.enviar_resposta_sense_codificar(contingut_fitxer(self.socket_request.nom_fitxer))
+            self.socket_request.tancar_socket()
        
 
     def make_response(self):
@@ -44,15 +70,15 @@ class GestorCiclePeticioResposta():
 
     
     def make_get_response(self):
-        response = ""
+        headers = get_headers(self.socket_request.nom_fitxer)
         if existeix_fitxer(self.socket_request.nom_fitxer):
             codi = RESPOSTA[200]
-            resposta = contingut_fitxer(self.socket_request.nom_fitxer)
-
+            self.fitxer_existeix = True
         else:
             codi = RESPOSTA[404]
-            resposta = ""
-        return f"{codi}{HEADERS}{resposta}"
+            self.fitxer_existeix = False
+        return f"{codi}{headers}"
+
 
 
 class Socket_Request():
@@ -87,7 +113,18 @@ class Socket_Request():
         ---------------------
             """)
         self.socket.sendall(resposta.encode())
+
+    def enviar_resposta_sense_codificar(self, resposta):
+        log("Enviant resposta...")
+        log("""
+        ---------------------
+            """)
+        self.socket.sendall(resposta)
+        
+    def tancar_socket(self):
+        log("Tancant socket...")
         self.socket.close()
+        return True
 
     
     def get_metode(self):
